@@ -1,5 +1,11 @@
 #include "PID.h"
 
+#define VERTICAL_CONTROL_DT 0.01f           // 直立环控制周期
+#define VERTICAL_INTEGRAL_ACTIVE_ANGLE 5.0f // 直立环积分控制的角度范围
+#define VELOCITY_CONTROL_DT 0.05f           // 速度环控制周期
+#define ENCODER_LINES_PER_MOTOR_REV 44.0f   // mpu极性的转换(可能写错了)
+#define MOTOR_GEAR_RATIO 9.27666f           // mpu取模数值(可能写错了)
+
 pid_t Vert; // 直立环pid
 pid_t Velo; // 速度环pid
 pid_t Turn; // 转向环pid
@@ -11,19 +17,24 @@ pid_t Turn; // 转向环pid
 void PID_Init()
 {
     // 直立环参数
-    Vert.Kp = 0;
-    Vert.Ki = 0;
-    Vert.Kd = 0;
+    Vert.Kp = 460.0f;
+    Vert.Ki = 0.0f;
+    Vert.Kd = 16.4f;
+    /* Integral 保存的是 I 项对 PWM 的直接贡献。 */
+    Vert.Integral_max = 200.0f;
 
     // 速度环参数参数
-    Velo.Kp = 0;
-    Velo.Ki = 0;
-    Velo.Kd = 0;
+    Velo.Kp = 0.0f;
+    Velo.Ki = 0.0f;
+    Velo.Kd = 0.0f;
+    /* 速度环输出是目标倾角，最大限制为 ±10°。 */
+    Velo.Integral_max = 10.0f;
 
     // 转向环参数
-    Turn.Kp = 0;
-    Turn.Ki = 0;
-    Turn.Kd = 0;
+    Turn.Kp = 0.0f;
+    Turn.Ki = 0.0f;
+    Turn.Kd = 0.0f;
+    Turn.Integral_max = 0.0f;
 
     ClearPID(&Vert);
     ClearPID(&Velo);
@@ -41,7 +52,7 @@ void ClearPID(pid_t *temp)
     temp->Last_Err = 0;
     temp->Proport = 0;
     temp->Diff = 0;
-    temp->Eerr = 0;
+    temp->Output = 0;
 }
 
 void IntegraLimit(pid_t *temp)
@@ -65,13 +76,19 @@ void IntegraLimit(pid_t *temp)
  */
 float Vertical(float Med, float Angle, float gyo_x)
 {
-    Vert.Last_Err = Vert.Err;
-
     Vert.Err = Angle - Med;
     Vert.Proport = Vert.Kp * Vert.Err;
 
-    Vert.Eerr = Vert.Err - Vert.Last_Err;
-    Vert.Integral = Vert.Ki * (Vert.Integral + Vert.Eerr);
+    /* 只在平衡点附近积分，避免倾倒或输出饱和时积分饱和。 */
+    if (Vert.Err > -VERTICAL_INTEGRAL_ACTIVE_ANGLE &&
+        Vert.Err < VERTICAL_INTEGRAL_ACTIVE_ANGLE)
+    {
+        Vert.Integral += Vert.Ki * Vert.Err * VERTICAL_CONTROL_DT;
+    }
+    else
+    {
+        Vert.Integral = 0.0f;
+    }
     IntegraLimit(&Vert);
 
     Vert.Diff = Vert.Kd * gyo_x;
@@ -83,40 +100,30 @@ float Vertical(float Med, float Angle, float gyo_x)
 /**
  * @brief 速度环控制
  *
- * @param Target 目标速度
- * @param encoder_L 左电机现速度
- * @param encoder_R 右电机现速度
+ * @param target 目标速度
+ * @param speed_l 左轮实际速度
+ * @param speed_r 右轮实际速度
  * @return float
  */
-float Velocity(int16_t Target, int16_t encoder_L, int16_t encoder_R)
+float Velocity(float target, float speed_l, float speed_r)
 {
-    Velo.Err = (float)((encoder_L + encoder_R) / 2.0 - Target);
-    // 滤波
-    static const float a = 0.7f;
-    static uint8_t stop = 0;
+    const float alpha = 0.7f;
 
-    if (stop == 1)
-    {
-        Velo.Err = 0.0f;
-        Velo.Last_Err = 0.0f;
-        Velo.Proport = 0;
-        Velo.Integral = 0;
-        stop = 0;
-        return 0.0f;
-    }
+    float raw_err = (speed_l + speed_r) * 0.5f - target;
 
-    Velo.Err = (1.0f - a) * Velo.Err + a * Velo.Last_Err;
+    Velo.Err = alpha * Velo.Last_Err + (1.0f - alpha) * raw_err;
     Velo.Last_Err = Velo.Err;
-    // 积分
-    Velo.Integral += Velo.Err;
-    // 积分限幅
+
+    Velo.Proport = Velo.Kp * Velo.Err;
+    /* Integral 与直立环一样，直接保存 I 项的输出贡献。 */
+    Velo.Integral += Velo.Ki * Velo.Err * VELOCITY_CONTROL_DT;
     IntegraLimit(&Velo);
-    // 速度环计算
-    Velo.Output = Velo.Kp * Velo.Proport + Velo.Ki * Velo.Integral;
-    // 目标角度的10°限幅
+
+    Velo.Output = Velo.Proport + Velo.Integral;
+
     if (Velo.Output > 10.0f)
         Velo.Output = 10.0f;
-    if (Velo.Output < -10.0f)
+    else if (Velo.Output < -10.0f)
         Velo.Output = -10.0f;
 
     return Velo.Output;
@@ -135,6 +142,19 @@ float Turnaway(float gyro_Z, int16_t Target_turn)
     temp = Turn.Kp * Target_turn + Turn.Kd * gyro_Z;
     return temp;
 }
+
+/**
+ * @brief 浮点控制量在转换为 int16_t 前限幅，避免越界转换后突然反号。
+ */
+static int16_t PwmCommandToInt16(float command)
+{
+    if (command > 32767.0f)
+        return 32767;
+    if (command < -32768.0f)
+        return -32768;
+    return (int16_t)command;
+}
+
 /**
  * @brief 开启电机控制，在定时器中断中调用
  *
@@ -143,8 +163,9 @@ void Control(void)
 {
     // 考虑是否移动到全局
     static float Vert_Out = 0, Velo_Out = 0, Turn_Out = 0;
-    int16_t Targe_Speed = 0, Target_Turn = 0, Encoder_L, Encoder_R;
-    static int16_t AllEncoder_L = 0, AllEncoder_R = 0;
+    const float Target_Speed = 0.0f;
+    int16_t Target_Turn = 0, Encoder_L, Encoder_R;
+    static int32_t Encoder_Sum_L = 0, Encoder_Sum_R = 0;
     static uint8_t Counts = 0;
 
     /* 车体已倒下时关闭电机；PID 缓存仍由控制层复位。 */
@@ -153,7 +174,7 @@ void Control(void)
         ClearPID(&Vert);
         ClearPID(&Velo);
         ClearPID(&Turn);
-        AllEncoder_L = AllEncoder_R = 0;
+        Encoder_Sum_L = Encoder_Sum_R = 0;
         Counts = 0;
         return;
     }
@@ -165,21 +186,29 @@ void Control(void)
     /*****************************速度环控制***************************/
     if (Open_Velo)
     {
+        Encoder_Sum_L += Encoder_L;
+        Encoder_Sum_R += Encoder_R;
         Counts++;
         if (Counts >= 5)
         {
-            AllEncoder_L = Encoder_L / 44.0 / 0.05 / 9.27666;
-            AllEncoder_R = Encoder_R / 44.0 / 0.05 / 9.27666;
-            Velo_Out = Velocity(Targe_Speed, AllEncoder_L, AllEncoder_R);
-            AllEncoder_L = AllEncoder_R = 0;
+            const float speed_l = (float)Encoder_Sum_L /
+                                  (ENCODER_LINES_PER_MOTOR_REV * MOTOR_GEAR_RATIO *
+                                   VELOCITY_CONTROL_DT);
+            const float speed_r = (float)Encoder_Sum_R /
+                                  (ENCODER_LINES_PER_MOTOR_REV * MOTOR_GEAR_RATIO *
+                                   VELOCITY_CONTROL_DT);
+
+            Velo_Out = Velocity(Target_Speed, speed_l, speed_r);
+            Encoder_Sum_L = Encoder_Sum_R = 0;
             Counts = 0;
         }
     }
     else
     {
         Velo_Out = 0;
-        AllEncoder_L = AllEncoder_R = 0;
+        Encoder_Sum_L = Encoder_Sum_R = 0;
         Counts = 0;
+        ClearPID(&Velo);
     }
     /*---------------------------------------------------------------*/
 
@@ -197,8 +226,8 @@ void Control(void)
         Turn_Out = 0;
     /*---------------------------------------------------------------*/
 
-    int16_t PwmOut_L = (int16_t)(Vert_Out - Turn_Out);
-    int16_t PwmOut_R = (int16_t)(Vert_Out + Turn_Out);
+    int16_t PwmOut_L = PwmCommandToInt16(Vert_Out - Turn_Out);
+    int16_t PwmOut_R = PwmCommandToInt16(Vert_Out + Turn_Out);
 
     Motor_SetSpeed(1, -PwmOut_L);
     Motor_SetSpeed(2, -PwmOut_R);
@@ -235,6 +264,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
             {
                 Motor_Clear();
                 Encoder_Clear();
+                ClearPID(&Vert);
+                ClearPID(&Velo);
+                ClearPID(&Turn);
             }
         }
     }

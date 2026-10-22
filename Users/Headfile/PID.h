@@ -3,7 +3,7 @@
 
 #include "AllHead.h"
 
-#define Med_Angle -1.0f
+#define Med_Angle 0.5f
 #define Open_Velo 0     // 0表示关闭速度环，1表示开启速度环
 #define Open_Turnaway 0 // 0表示关闭速度环，1表示开启速度环
 
@@ -14,7 +14,6 @@ typedef struct PID
     float Ki;
     float Kd;
     float Err;
-    float Eerr; // err之差
     float Last_Err;
     float Proport;
     float Integral;
@@ -36,7 +35,7 @@ void ClearPID(pid_t *temp);
 
 // 三环
 float Vertical(float Med, float Angle, float gyo_x);
-float Velocity(int16_t Target, int16_t encoder_L, int16_t encoder_R);
+float Velocity(float target, float speed_l, float speed_r);
 float Turnaway(float gyro_Z, int16_t Target_turn);
 
 #endif

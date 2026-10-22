@@ -14,10 +14,6 @@
         },
         {
             "path": "../Users"
-        },
-        {
-            "name": "NewBalance_car",
-            "path": ".."
         }
     ],
     "settings": {

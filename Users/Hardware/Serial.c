@@ -5,10 +5,17 @@ uint8_t TempSenData;
 volatile uint16_t Serial_RxLength;
 volatile uint8_t Serial_RxReady;
 
+/* 空闲中断只表示收到一个片段；']' 是协议帧尾，'\n' 作为兼容帧尾。 */
+static uint8_t RxFrameBuffer[MAXLEN + 1];
+static uint16_t RxFrameLength;
+static uint8_t RxFrameOverflow;
+
 void Serial_Init(void)
 {
     Serial_RxLength = 0U;
     Serial_RxReady = 0U;
+    RxFrameLength = 0U;
+    RxFrameOverflow = 0U;
 }
 
 void Serial_SenData(uint8_t *Data, uint16_t len)
@@ -27,24 +34,72 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
     if (huart == &huart3)
     {
-        uint16_t rx_len = Size;
+        uint16_t i;
 
-        if (rx_len > MAXLEN)
+        for (i = 0U; i < Size; i++)
         {
-            rx_len = MAXLEN;
+            uint8_t data = Tempbuff[i];
+
+            if ((data == ']') || (data == '\n'))
+            {
+                /* ']' 属于 [slider,Kx,x] 帧本身，提交前要写入缓冲区。 */
+                if ((data == ']') && !RxFrameOverflow)
+                {
+                    if (RxFrameLength < MAXLEN)
+                    {
+                        RxFrameBuffer[RxFrameLength++] = data;
+                    }
+                    else
+                    {
+                        RxFrameLength = 0U;
+                        RxFrameOverflow = 1U;
+                    }
+                }
+
+                if (!RxFrameOverflow)
+                {
+                    /* 同时兼容以 \r\n 结尾的数据。 */
+                    if ((RxFrameLength > 0U) &&
+                        (RxFrameBuffer[RxFrameLength - 1U] == '\r'))
+                    {
+                        RxFrameLength--;
+                    }
+
+                    if (RxFrameLength > 0U)
+                    {
+                        memcpy(ReciveData, RxFrameBuffer, RxFrameLength);
+                        ReciveData[RxFrameLength] = '\0';
+                        Serial_RxLength = RxFrameLength;
+                        Serial_RxReady = 1U;
+                    }
+                }
+
+                RxFrameLength = 0U;
+                RxFrameOverflow = 0U;
+            }
+            else if (data == '[')
+            {
+                /* 新帧头可清除换行配置错误或线路噪声留下的残片。 */
+                RxFrameBuffer[0] = data;
+                RxFrameLength = 1U;
+                RxFrameOverflow = 0U;
+            }
+            else if (!RxFrameOverflow)
+            {
+                if (RxFrameLength < MAXLEN)
+                {
+                    RxFrameBuffer[RxFrameLength++] = data;
+                }
+                else
+                {
+                    /* 超长帧丢弃到下一个换行，避免残片成为新帧。 */
+                    RxFrameLength = 0U;
+                    RxFrameOverflow = 1U;
+                }
+            }
         }
-        memcpy(ReciveData, Tempbuff, rx_len);
-        while ((rx_len > 0U) &&
-               ((ReciveData[rx_len - 1U] == '\r') ||
-                (ReciveData[rx_len - 1U] == '\n')))
-        {
-            rx_len--;
-        }
-        ReciveData[rx_len] = '\0';
-        Serial_RxLength = rx_len;
-        Serial_RxReady = 1U;
+
         Serial_ReciveData();
-        
     }
 }
 
@@ -53,6 +108,8 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
     if (huart == &huart3)
     {
         /* 接收出错时 HAL 会结束本次接收；立即恢复下一帧接收。 */
+        RxFrameLength = 0U;
+        RxFrameOverflow = 0U;
         Serial_RxReady = 0U;
         Serial_ReciveData();
     }

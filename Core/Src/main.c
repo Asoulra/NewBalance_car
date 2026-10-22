@@ -171,7 +171,7 @@ int main(void)
         if (sscanf((char *)RxData, "[slider,%2[^,],%f]%n", Key, &Value, &End) == 2 &&
             End > 0 && RxData[End] == '\0')
         {
-          if (strcmp(Key, "Kp") == 0 && Value >= 1.0f && Value <= 400.0f)
+          if (strcmp(Key, "Kp") == 0 && Value >= 1.0f)
           {
             Vert.Kp = Value;
             Updated = 1;

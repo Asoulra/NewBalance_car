@@ -7,7 +7,7 @@ int16_t Ax, Ay, Az, Gx, Gy, Gz;
 float AngleAcc;  // 由加速度计得到的角度值
 float AngleGyro; // 由陀螺仪得到的角度值，执行互补滤波后，此值基本与Angle相等
 float Angle;
-float Alpha = 0.02f;
+float Alpha = 0.03f;
 /**
  * 函    数：MPU6050写寄存器
  * 参    数：RegAddress 寄存器地址，范围：参考MPU6050手册的寄存器描述
@@ -61,7 +61,7 @@ void MPU6050_Init(void)
     MPU6050_WriteReg(MPU6050_PWR_MGMT_1, 0x01);   // 电源管理寄存器1，取消睡眠模式，选择时钟源为X轴陀螺仪
     MPU6050_WriteReg(MPU6050_PWR_MGMT_2, 0x00);   // 电源管理寄存器2，保持默认值0，所有轴均不待机
     MPU6050_WriteReg(MPU6050_SMPLRT_DIV, 0x00);   // DLPF开启时：1kHz/(1+0)=1kHz，STM32仍每5ms读取一次
-    MPU6050_WriteReg(MPU6050_CONFIG, 0x01);       // 低延迟DLPF：加速度计约184Hz、陀螺仪约188Hz
+    MPU6050_WriteReg(MPU6050_CONFIG, 0x00);       //
     MPU6050_WriteReg(MPU6050_GYRO_CONFIG, 0x18);  // 陀螺仪配置寄存器，选择满量程为±2000°/s
     MPU6050_WriteReg(MPU6050_ACCEL_CONFIG, 0x18); // 加速度计配置寄存器，选择满量程为±16g
 }

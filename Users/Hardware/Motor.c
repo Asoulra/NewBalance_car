@@ -22,6 +22,8 @@ uint8_t Motor_FallProtection(float angle, float reference_angle)
         angle > (reference_angle + MOTOR_FALL_ANGLE_DEG))
     {
         Motor_Clear();
+        KEY_Flag = 0;
+        LED_Change(0);
         return 1;
     }
 
