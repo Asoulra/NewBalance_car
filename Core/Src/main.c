@@ -114,8 +114,8 @@ int main(void)
     // 蓝牙测试与MPU测试
     if (HAL_GetTick() - last_tick >= 10)
     {
+      // sprintf((char *)SenData, "[plot,%.1f]", Angle);
       sprintf((char *)SenData, "[plot,%.1f]", Angle);
-      // sprintf((char *)SenData, "[plot,%d,%d]", Gx, Ay);
       OLED_FastFresh(LINE1, ROLL1, SenData);
       Serial_SenData((uint8_t *)SenData, (uint16_t)strlen((char *)SenData));
 
@@ -161,64 +161,19 @@ int main(void)
       //     OLED_UpdateArea(ROLL1, LINE7, 128, 8);
       //   }
       // }
-      // 蓝牙调整直立环pid
+      /* 蓝牙数据包统一交给 BlueSerial.c 解析。 */
       if (RxReady)
       {
-        char Key[3] = {0};
-        float Value;
-        int End = 0;
-        uint8_t Updated = 0;
-        if (sscanf((char *)RxData, "[slider,%2[^,],%f]%n", Key, &Value, &End) == 2 &&
-            End > 0 && RxData[End] == '\0')
-        {
-          if (strcmp(Key, "Kp") == 0 && Value >= 1.0f)
-          {
-            Vert.Kp = Value;
-            Updated = 1;
-          }
-          else if (strcmp(Key, "Ki") == 0 && Value >= 0.0f && Value <= 1.0f)
-          {
-            Vert.Ki = Value;
-            Updated = 1;
-          }
-          else if (strcmp(Key, "Kd") == 0 && Value >= 0.0f)
-          {
-            Vert.Kd = Value;
-            Updated = 1;
-          }
-        }
-        // // 蓝牙死区测试
-        // char temp_pwm[4] = {0};
-        // float pwm_value = 0.0f;
-        // int pwm_end = 0;
-        // if (sscanf((char *)RxData, "[slider,%3[^,],%f]%n",
-        //            temp_pwm, &pwm_value, &pwm_end) == 2 &&
-        //     pwm_end > 0 && RxData[pwm_end] == '\0' &&
-        //     strcmp(temp_pwm, "PWM") == 0 &&
-        //     pwm_value >= -2700.0f && pwm_value <= 2700.0f)
-        // {
-        //   int16_t pwm = (int16_t)pwm_value;
-        //   Motor_SetSpeed(1, pwm);
-        //   Motor_SetSpeed(2, pwm);
+        uint8_t BlueStatus = BlueSerial_ProcessPacket((char *)RxData);
 
-        //   /* 显示蓝牙PWM命令、TIM1通道4实际比较值及控制开关状态。 */
-        //   OLED_ClearArea(ROLL1, LINE7, 128, 8);
-        //   sprintf((char *)SenData, "P:%d C:%lu", pwm,
-        //           (unsigned long)__HAL_TIM_GET_COMPARE(&htim1, TIM_CHANNEL_4));
-        //   OLED_ShowString(ROLL1, LINE7, (char *)SenData, OLED_6X8);
-        //   OLED_UpdateArea(ROLL1, LINE7, 128, 8);
-        // }
-
-        if (Updated)
+        if ((BlueStatus & BLUESERIAL_UPDATE_PID) != 0U)
         {
-          OLED_ClearArea(ROLL1, LINE3, 128, 24);
-          sprintf((char *)SenData, "Kp:%.2f", Vert.Kp);
+          OLED_ClearArea(ROLL1, LINE3, 128, 16);
+          sprintf((char *)SenData, "N:%s", BlueSerial_LastSliderName);
           OLED_ShowString(ROLL1, LINE3, (char *)SenData, OLED_6X8);
-          sprintf((char *)SenData, "Ki:%.2f", Vert.Ki);
+          sprintf((char *)SenData, "V:%.3f", BlueSerial_LastSliderValue);
           OLED_ShowString(ROLL1, LINE4, (char *)SenData, OLED_6X8);
-          sprintf((char *)SenData, "Kd:%.2f", Vert.Kd);
-          OLED_ShowString(ROLL1, LINE5, (char *)SenData, OLED_6X8);
-          OLED_UpdateArea(ROLL1, LINE3, 128, 24);
+          OLED_UpdateArea(ROLL1, LINE3, 128, 16);
         }
       }
       //------------------------------------------//
@@ -229,6 +184,18 @@ int main(void)
     // motor调试
     // Motor_SetSpeed(1, 1000);
     // Motor_SetSpeed(2, 1000);
+
+    // 编码器极性测试
+    // char Encoder_Temp[MAXLEN + 1];
+    // // int16_t temp_EL = (int16_t)(-(Encoder_GetCount(2)));
+    // // int16_t temp_ER = Encoder_GetCount(1);
+    // // sprintf(Encoder_Temp, "EL:%d,ER:%d", temp_EL, temp_ER);
+    // // OLED_FastFresh(LINE3, ROLL1, (uint8_t *)Encoder_Temp);
+    // int16_t temp_EL = (int16_t)(-(Encoder_GetRawCount(1)));
+    // int16_t temp_ER = (int16_t)(-(Encoder_GetRawCount(2)));
+
+    // sprintf(Encoder_Temp, "EL:%d ER:%d", temp_EL, temp_ER);
+    // OLED_FastFresh(LINE3, ROLL1, (uint8_t *)Encoder_Temp);
     /*******************************代码调试结束********************************/
     /* USER CODE END WHILE */
 

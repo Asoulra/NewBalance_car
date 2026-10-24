@@ -64,7 +64,7 @@ void Motor_Limit(int16_t *pwm, int16_t Targe)
 /**
  * @brief 电机速度设置,如果直行两个电机转速不一样排查这里
  *
- * @param n 指定那个电机，n=1的时候指定左电机；n=2的时候右电机
+ * @param n 电机编号，1为左电机AIN(TIM1_CH4/PA11)，2为右电机BIN(TIM1_CH1/PA8)
  * @param pwm 指定电机的PWM速度
  */
 void Motor_SetSpeed(uint8_t n, int16_t pwm)

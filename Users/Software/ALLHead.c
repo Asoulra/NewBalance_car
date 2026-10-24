@@ -14,6 +14,6 @@ void ALL_Start(void)
 {
     PWM_Start();                   // PWM通道开启
     Encoder_Start();               // 编码器接口开启
-    HAL_TIM_Base_Start_IT(&htim3); // 定时器中断开启
+    HAL_TIM_Base_Start_IT(&htim2); // TIM2 1kHz 控制中断开启
     Serial_ReciveData();           // 启动USART3的空闲中断接收
 }

@@ -57,15 +57,15 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define J1R1_Pin GPIO_PIN_0
-#define J1R1_GPIO_Port GPIOA
-#define J1R2_Pin GPIO_PIN_1
-#define J1R2_GPIO_Port GPIOA
 #define UserLED_Pin GPIO_PIN_4
 #define UserLED_GPIO_Port GPIOA
 #define UsesKey_Pin GPIO_PIN_5
 #define UsesKey_GPIO_Port GPIOA
 #define UsesKey_EXTI_IRQn EXTI9_5_IRQn
+#define J1L1_Pin GPIO_PIN_6
+#define J1L1_GPIO_Port GPIOA
+#define J1L2_Pin GPIO_PIN_7
+#define J1L2_GPIO_Port GPIOA
 #define AIN1_Pin GPIO_PIN_12
 #define AIN1_GPIO_Port GPIOB
 #define AIN2_Pin GPIO_PIN_13
@@ -82,10 +82,10 @@ void Error_Handler(void);
 #define MySDA_GPIO_Port GPIOB
 #define MYSCL_Pin GPIO_PIN_5
 #define MYSCL_GPIO_Port GPIOB
-#define J2L2_Pin GPIO_PIN_6
-#define J2L2_GPIO_Port GPIOB
-#define J2L1_Pin GPIO_PIN_7
-#define J2L1_GPIO_Port GPIOB
+#define J2R2_Pin GPIO_PIN_6
+#define J2R2_GPIO_Port GPIOB
+#define J2R1_Pin GPIO_PIN_7
+#define J2R1_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

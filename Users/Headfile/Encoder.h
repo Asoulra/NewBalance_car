@@ -7,4 +7,5 @@
 void Encoder_Clear(void);
 void Encoder_Start(void);
 int16_t Encoder_GetCount(uint8_t n);
+int16_t Encoder_GetRawCount(uint8_t n);
 #endif /* __ENCODER_H */
